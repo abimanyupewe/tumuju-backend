@@ -63,33 +63,52 @@ npm run start:prod
 | `npm run test:e2e` | Menjalankan end-to-end test. |
 | `npm run test:cov` | Menjalankan test dengan laporan cakupan. |
 
-## API saat ini
+## API saat ini (Fase 1)
 
-| Method | Path | Respons |
-| --- | --- | --- |
-| `GET` | `/` | `Hello World!` |
+Prefix global: `/api/v1`
+Dokumentasi interaktif Swagger: `http://localhost:3000/api/docs`
+
+| Method | Path | Kegunaan | Parameter / Query |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/health` | Diagnostic & health readiness status | - |
+| `GET` | `/api/v1/stops` | Pencarian halte, stasiun, terminal dengan paginasi & filter | `query`, `type`, `page`, `limit` |
+| `GET` | `/api/v1/stops/nearby` | Pencarian stop terdekat (Haversine Distance) | `lat`, `lng`, `radius`, `limit` |
+| `GET` | `/api/v1/stops/:id` | Detail lengkap titik transportasi | `id` |
+| `GET` | `/api/v1/routes` | Daftar rute publik terverifikasi (KAI, Bus, Angkot) | `mode` |
+| `GET` | `/api/v1/routes/:id` | Detail rute dan urutan titik pemberhentian (stops) | `id` |
 
 ```bash
-curl http://localhost:3000/
+# Contoh pengujian endpoint
+curl http://localhost:3000/api/v1/health
+curl "http://localhost:3000/api/v1/stops?query=Kotabaru"
+curl "http://localhost:3000/api/v1/stops/nearby?lat=-7.982563&lng=112.630761&radius=3000"
+curl http://localhost:3000/api/v1/routes
 ```
 
-Endpoint transportasi belum tersedia. Jangan menganggap response saat ini sebagai kontrak API untuk aplikasi Flutter.
-
-## Struktur proyek
+## Struktur proyek (Clean Architecture)
 
 ```text
 src/
-  app.controller.ts       Endpoint HTTP saat ini
-  app.service.ts          Logika aplikasi saat ini
-  app.module.ts           Modul root dan observability
-  main.ts                 Bootstrap server
+  common/                 Komponen lintas modul (Filters, Interceptors, Errors, Utils)
+    errors/               Domain error classes (AppError)
+    filters/              Global exception filter (standard error JSON)
+    interceptors/         Request context, request-id, response-time tracker
+    result/               Functional Result/Either pattern
+    utils/                Geospatial utility (Haversine formula & bounding box)
+  config/                 Typed configuration module & environment loader
+  infrastructure/
+    database/             PrismaService database connector
+  modules/
+    health/               Health & system readiness module
+    stops/                Fitur Transport Stops (Domain, Application, Infrastructure, Presentation)
+    routes/               Fitur Transport Routes (Domain, Application, Infrastructure, Presentation)
+  main.ts                 Bootstrap server, Swagger, global pipes & filters
+prisma/
+  schema.prisma           PostgreSQL/Neon Prisma schema
+  seed.ts                 Database seeder snapshot Malang Raya
 test/
-  app.e2e-spec.ts         Pengujian HTTP end-to-end
-dev/
-  PHASE_0_DATA_AUDIT.md   Keputusan sumber data MVP
+  app.e2e-spec.ts         Pengujian HTTP end-to-end lengkap
 ```
-
-Tambahkan modul baru di `src/<fitur>/` dan pasangkan controller, service, DTO, serta test yang terkait. Gunakan nama file kebab-case, class PascalCase, dan metode camelCase.
 
 ## Konfigurasi dan data
 

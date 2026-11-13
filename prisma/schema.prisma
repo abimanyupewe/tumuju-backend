@@ -1,0 +1,151 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model TransportStop {
+  id           String      @id @default(uuid())
+  name         String
+  code         String?     @unique
+  latitude     Float
+  longitude    Float
+  stopType     String      @map("stop_type") // "station" | "terminal" | "bus_stop" | "angkot_stop"
+  source       String      // "osm" | "dishub" | "manual"
+  sourceId     String?     @map("source_id")
+  license      String      @default("ODbL")
+  verifiedAt   DateTime?   @map("verified_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  routeStops   RouteStop[]
+
+  @@index([name])
+  @@index([stopType])
+  @@index([latitude, longitude])
+  @@map("transport_stops")
+}
+
+model TransportOperator {
+  id        String           @id @default(uuid())
+  name      String
+  mode      String           // "train" | "bus" | "angkot"
+  source    String           @default("dishub")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  routes    TransportRoute[]
+
+  @@map("transport_operators")
+}
+
+model TransportRoute {
+  id          String            @id @default(uuid())
+  operatorId  String            @map("operator_id")
+  operator    TransportOperator @relation(fields: [operatorId], references: [id])
+  routeCode   String            @unique @map("route_code")
+  name        String
+  mode        String            // "train" | "bus" | "angkot"
+  source      String            @default("dishub")
+  status      String            @default("active") // "active" | "unverified" | "planned"
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  routeStops  RouteStop[]
+
+  @@index([routeCode])
+  @@map("transport_routes")
+}
+
+model RouteStop {
+  id           String         @id @default(uuid())
+  routeId      String         @map("route_id")
+  stopId       String         @map("stop_id")
+  stopSequence Int            @map("stop_sequence")
+  direction    String         @default("outbound") // "outbound" | "inbound"
+  route        TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop         TransportStop  @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, stopId, direction])
+  @@index([routeId, stopSequence])
+  @@map("route_stops")
+}
+
+model ServiceCalendar {
+  id           String     @id @default(uuid())
+  startDate    DateTime   @map("start_date")
+  endDate      DateTime   @map("end_date")
+  weekdayFlags String     @map("weekday_flags") // "1111100" (Mon-Sun)
+  schedules    Schedule[]
+
+  @@map("service_calendars")
+}
+
+model Schedule {
+  id                String          @id @default(uuid())
+  routeId           String          @map("route_id")
+  stopId            String          @map("stop_id")
+  serviceCalendarId String          @map("service_calendar_id")
+  arrivalTime       String          @map("arrival_time") // "HH:mm:ss"
+  departureTime     String          @map("departure_time") // "HH:mm:ss"
+  serviceCalendar   ServiceCalendar @relation(fields: [serviceCalendarId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, stopId])
+  @@map("schedules")
+}
+
+model User {
+  id          String           @id @default(uuid())
+  firebaseUid String           @unique @map("firebase_uid")
+  displayName String?          @map("display_name")
+  email       String?          @unique
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  favorites   UserFavorite[]
+  histories   JourneyHistory[]
+  devices     UserDevice[]
+
+  @@map("users")
+}
+
+model UserFavorite {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetType String   @map("target_type") // "stop" | "route"
+  targetId   String   @map("target_id")
+  label      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("user_favorites")
+}
+
+model JourneyHistory {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originName      String   @map("origin_name")
+  originLat       Float    @map("origin_lat")
+  originLng       Float    @map("origin_lng")
+  destinationName String   @map("destination_name")
+  destinationLat  Float    @map("destination_lat")
+  destinationLng  Float    @map("destination_lng")
+  searchedAt      DateTime @default(now()) @map("searched_at")
+
+  @@index([userId, searchedAt])
+  @@map("journey_histories")
+}
+
+model UserDevice {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fcmToken  String   @map("fcm_token")
+  platform  String   // "android" | "ios"
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, fcmToken])
+  @@map("user_devices")
+}
